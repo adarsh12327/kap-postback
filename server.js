@@ -30,7 +30,7 @@ res.send(
 });
 
 
-// CLICK TRACKING
+// CLICK ROUTE
 app.get("/click",
 async (req, res) => {
 
@@ -42,21 +42,23 @@ req.query.uid;
 const offer =
 req.query.offer;
 
-if (!uid ||
-!offer) {
+if (!uid
+|| !offer) {
 
 return res.send(
 "Missing uid or offer");
 }
 
 
-// GET OFFER DATA
+// GET OFFER
 const offerSnap =
 await db.ref(
 `offers/${offer}`)
 .once("value");
 
-if (!offerSnap.exists()) {
+if (
+!offerSnap.exists()
+) {
 
 return res.send(
 "Offer not found");
@@ -66,12 +68,11 @@ const offerData =
 offerSnap.val();
 
 
-// GENERATE CLICK ID
-const clickId =
-Date.now().toString();
-
-
 // SAVE CLICK
+const clickId =
+Date.now()
+.toString();
+
 await db.ref(
 `offer_clicks/${clickId}`)
 .set({
@@ -92,20 +93,21 @@ Date.now()
 });
 
 
-// REDIRECT TO PLAY STORE
-return res.redirect(
+// REDIRECT
+res.redirect(
 offerData.link);
 
 } catch (e) {
 
 res.send(
 e.toString());
+
 }
 
 });
 
 
-// VERIFY INSTALL
+// VERIFY
 app.get("/verify",
 async (req, res) => {
 
@@ -117,27 +119,26 @@ req.query.clickid;
 if (!clickid) {
 
 return res.send(
-"Click ID missing");
+"Click id missing");
 }
 
 
-// CLICK DATA
 const clickSnap =
 await db.ref(
 `offer_clicks/${clickid}`)
 .once("value");
 
-if (!clickSnap.exists()) {
+if (
+!clickSnap.exists()
+) {
 
 return res.send(
-"Invalid Click ID");
+"Invalid click");
 }
 
 const clickData =
 clickSnap.val();
 
-
-// ALREADY CLAIMED
 if (
 clickData.status
 === "completed"
@@ -148,7 +149,6 @@ return res.send(
 }
 
 
-// USER COINS
 const userRef =
 db.ref(
 `users/${clickData.uid}/coins`);
@@ -166,21 +166,20 @@ userSnap.exists()
 oldCoins =
 parseInt(
 userSnap.val()
-.toString());
+|| 0);
+
 }
 
-
-// ADD COINS
 const newCoins =
 oldCoins +
 parseInt(
-clickData.reward);
+clickData.reward
+|| 0);
 
 await userRef
 .set(newCoins);
 
 
-// COMPLETE STATUS
 await db.ref(
 `offer_clicks/${clickid}`)
 .update({
@@ -197,6 +196,7 @@ res.send(
 
 res.send(
 e.toString());
+
 }
 
 });
@@ -206,63 +206,11 @@ const PORT =
 process.env.PORT
 || 3000;
 
-app.listen(PORT,
+app.listen(
+PORT,
 () => {
 
 console.log(
 "Server Running");
 
-});req,
-res) => {
-
-try {
-
-const uid =
-req.query.uid;
-
-const reward =
-parseInt(
-req.query.reward
-|| 0);
-
-if(!uid ||
-!reward) {
-
-return res.send(
-"Missing uid or reward");
-}
-
-const userRef =
-db.ref(
-`users/${uid}/coins`);
-
-const snap =
-await userRef.once(
-"value");
-
-const oldCoins =
-parseInt(
-snap.val()
-|| 0);
-
-await userRef.set(
-oldCoins
-+ reward);
-
-res.send(
-"Reward Added");
-
-} catch(e) {
-
-res.send(
-e.toString());
-}
-});
-
-app.listen(
-3000,
-() => {
-
-console.log(
-"Server Started");
 });
