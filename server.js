@@ -113,45 +113,68 @@ async (req, res) => {
 
 try {
 
-const clickid =
-req.query.clickid;
+const uid =
+req.query.uid;
+
+const offer =
+req.query.offer;
+
+if (!uid
+|| !offer) {
+
+return res.send(
+"Missing data");
+}
+
+
+// FIND PENDING CLICK
+const snap =
+await db.ref(
+"offer_clicks")
+.once("value");
+
+let clickid =
+null;
+
+let clickData =
+null;
+
+snap.forEach(
+child => {
+
+const data =
+child.val();
+
+if (
+data.uid === uid
+&&
+data.offer
+=== offer
+&&
+data.status
+=== "pending"
+) {
+
+clickid =
+child.key;
+
+clickData =
+data;
+}
+});
+
 
 if (!clickid) {
 
 return res.send(
-"Click id missing");
+"No pending offer");
 }
 
 
-const clickSnap =
-await db.ref(
-`offer_clicks/${clickid}`)
-.once("value");
-
-if (
-!clickSnap.exists()
-) {
-
-return res.send(
-"Invalid click");
-}
-
-const clickData =
-clickSnap.val();
-
-if (
-clickData.status
-=== "completed"
-) {
-
-return res.send(
-"Already Claimed");
-}
-
-
+// COINS ADD
 const userRef =
 db.ref(
-`users/${clickData.uid}/coins`);
+`users/${uid}/coins`);
 
 const userSnap =
 await userRef
@@ -167,7 +190,6 @@ oldCoins =
 parseInt(
 userSnap.val()
 || 0);
-
 }
 
 const newCoins =
@@ -178,21 +200,24 @@ clickData.reward
 
 await userRef
 .set(newCoins);
-  // HISTORY SAVE
+
+
+// HISTORY SAVE
 await db.ref(
-`history/${clickData.uid}`)
+`history/${uid}`)
 .push()
 .set({
 
-title:
-clickData.offer,
+type:
+"Coin Added",
+
+message:
+clickData.offer
+.replace(/_/g, " "),
 
 coins:
-"+" +
-clickData.reward,
-
-status:
-"Completed",
+parseInt(
+clickData.reward),
 
 time:
 Date.now()
@@ -200,6 +225,7 @@ Date.now()
 });
 
 
+// COMPLETE
 await db.ref(
 `offer_clicks/${clickid}`)
 .update({
@@ -218,19 +244,5 @@ res.send(
 e.toString());
 
 }
-
-});
-
-
-const PORT =
-process.env.PORT
-|| 3000;
-
-app.listen(
-PORT,
-() => {
-
-console.log(
-"Server Running");
 
 });
