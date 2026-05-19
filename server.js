@@ -178,6 +178,26 @@ clickData.reward
 
 await userRef
 .set(newCoins);
+  // HISTORY SAVE
+await db.ref(
+`history/${clickData.uid}`)
+.push()
+.set({
+
+title:
+clickData.offer,
+
+coins:
+"+" +
+clickData.reward,
+
+status:
+"Completed",
+
+time:
+Date.now()
+
+});
 
 
 await db.ref(
