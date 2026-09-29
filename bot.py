@@ -11,7 +11,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "PASTE_YOUR_BOT_TOKEN_HERE")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8041231672:AAF9lDFAQIRxWjgXHlF_6HyRa3HkhQDVFa8")
 BASE_URL = "https://prorewards.io/server"
 DB_FILE = os.getenv("DB_FILE", "bot_database.json")
 HEADERS = {
