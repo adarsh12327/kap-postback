@@ -48,12 +48,18 @@ OTP_FINISH_ENDPOINT = f"{BASE_URL}/login/finish"
 DB_FILE = "bot_database.json"
 
 DEFAULT_HEADERS = {
-    "accept": "application/json",
-    "appversion": "21.4.65",
-    "fcmtoken": "dgtCWPYjTOiBhtjDK_Zzp4:APA91bGadT0Ni3q1ENqMGcNJhAiVbDYlsUMaYjytfWu3ZZBAh_NLhAsaKi-Piw8kyibidO9XJhw6aQwdNIe69wxrV9QoPGuJMQM5n5agX2KTAO11exiUGB0",
-    "appinstanceid": "75f338a0914b75285c3fbd09fb14be71",
+    "accept": "*/*",
+    "appVersion": "21.4.65",
+    "fcmToken": "null",
     "Content-Type": "application/json",
-    "User-Agent": "okhttp/4.10.0",
+    "User-Agent": "Mozilla/5.0 (Linux; Android 12; V2204 Build/SP1A.210812.003_IN) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.36 Mobile Safari/537.36",
+    "Origin": "https://prorewards.io",
+    "X-Requested-With": "mark.adarsh.gr",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
+    "Referer": "https://prorewards.io/login",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 # ============================================================
