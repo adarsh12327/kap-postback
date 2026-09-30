@@ -11,6 +11,30 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple
 
 import requests
+
+# Load local .env without requiring an extra package.
+# Lines use the standard KEY=VALUE format; shell environment variables take priority.
+def load_dotenv_file(path: str = ".env") -> None:
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                    value = value[1:-1]
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except OSError as e:
+        logger_placeholder = e
+
+load_dotenv_file()
+
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -38,7 +62,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # BOT CONFIGURATION
 # ============================================================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "PASTE_YOUR_NEW_BOT_TOKEN_HERE")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_IDS = [7972816159]
 
 BASE_URL = "https://prorewards.io/server"
@@ -1742,7 +1766,7 @@ def main():
         asyncio.set_event_loop(loop)
 
     if BOT_TOKEN == "PASTE_YOUR_NEW_BOT_TOKEN_HERE":
-        raise RuntimeError("BOT_TOKEN set karo: environment variable BOT_TOKEN me apna NEW Telegram bot token do.")
+        raise RuntimeError("BOT_TOKEN set karo: project ke .env me BOT_TOKEN=YOUR_NEW_BOT_TOKEN likho.")
 
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
 
