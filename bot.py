@@ -372,6 +372,43 @@ def api_use_scratch(jwt_token: str, scratch_id: str):
         return {"status": False, "message": str(e)}
 
 # ============================================================
+# SPIN SYSTEM API
+# ============================================================
+def api_get_spin_data(jwt_token: str):
+    """Fetch the authenticated user's current Spin data."""
+    try:
+        url = f"{BASE_URL}/user/spindata/"
+        r = requests.get(
+            url,
+            headers=build_headers(jwt_token),
+            proxies=get_configured_proxies(),
+            timeout=20
+        )
+        return safe_parse_json(r)
+    except Exception as e:
+        logger.error(f"api_get_spin_data error: {e}")
+        return {"status": False, "message": str(e)}
+
+def api_spin_update(jwt_token: str, encrypted_spin_amount: str):
+    """Submit a freshly generated, authorized encrypted spinAmount."""
+    try:
+        if not encrypted_spin_amount or not isinstance(encrypted_spin_amount, str):
+            return {"status": False, "message": "Fresh encrypted spinAmount required."}
+        url = f"{BASE_URL}/user/spinUpdate"
+        payload = {"spinAmount": encrypted_spin_amount}
+        r = requests.post(
+            url,
+            headers=build_headers(jwt_token),
+            json=payload,
+            proxies=get_configured_proxies(),
+            timeout=20
+        )
+        return safe_parse_json(r)
+    except Exception as e:
+        logger.error(f"api_spin_update error: {e}")
+        return {"status": False, "message": str(e)}
+
+# ============================================================
 # KEYBOARD BUILDERS (100% INLINE BUTTON INTERFACES)
 # ============================================================
 def kb_main_menu(user_id: int) -> InlineKeyboardMarkup:
@@ -391,6 +428,9 @@ def kb_main_menu(user_id: int) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(login_btn_text, callback_data="btn_login_menu"),
             InlineKeyboardButton("🎁 Scratch Cards", callback_data="btn_scratch_menu")
+        ],
+        [
+            InlineKeyboardButton("🎡 Spin", callback_data="btn_spin_menu")
         ],
         [
             InlineKeyboardButton("⏰ Auto Daily Schedule", callback_data="btn_schedule_menu"),
@@ -454,6 +494,11 @@ def kb_schedule_menu(enabled: bool) -> InlineKeyboardMarkup:
     ])
 
 
+def kb_spin_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh Spin Data", callback_data="spin_refresh")],
+        [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data="nav_main_menu")]
+    ])
 def kb_scratch_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Refresh Scratch Cards", callback_data="btn_scratch_menu")],
@@ -1078,6 +1123,86 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
 
+    elif data == "btn_spin_menu":
+        jwt_token = u.get("jwt")
+        if not jwt_token:
+            await query.edit_message_text(
+                "❌ *Login Required!* Spin use karne ke liye pehle OTP login karein.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_login_options()
+            )
+            return
+
+        result = await asyncio.to_thread(api_get_spin_data, jwt_token)
+
+        if not isinstance(result, dict) or not result.get("status"):
+            msg = result.get("message", "Spin data fetch nahi hua.") if isinstance(result, dict) else "Spin data fetch nahi hua."
+            await query.edit_message_text(
+                f"❌ *Spin data fetch failed*\n\n{str(msg)[:300]}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_spin_menu()
+            )
+            return
+
+        response = result.get("response")
+        if isinstance(response, str):
+            data_info = (
+                "🔐 *Encrypted server response received*\n"
+                f"📦 *Response size:* `{len(response)} chars`"
+            )
+        elif isinstance(response, dict):
+            data_info = "📦 *Spin data:* `JSON response received`"
+        elif response is None:
+            data_info = "⚠️ *Spin response:* empty"
+        else:
+            data_info = f"📦 *Spin response type:* `{type(response).__name__}`"
+
+        await query.edit_message_text(
+            "🎡 *PROREWARDS SPIN SYSTEM*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🟢 *Connection:* Active\n"
+            "📡 *Endpoint:* `/user/spindata/`\n"
+            f"{data_info}\n\n"
+            "ℹ️ Spin submission ke liye server-generated fresh encrypted `spinAmount` required hai. Captured/replayed ciphertext use nahi kiya ja raha.\n"
+            "━━━━━━━━━━━━━━━━━━━━",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb_spin_menu()
+        )
+
+    elif data == "spin_refresh":
+        jwt_token = u.get("jwt")
+        if not jwt_token:
+            await query.edit_message_text(
+                "❌ *Login Required!* Pehle OTP login karein.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_login_options()
+            )
+            return
+
+        await query.answer("🔄 Spin data refresh ho raha hai...")
+        result = await asyncio.to_thread(api_get_spin_data, jwt_token)
+
+        if not isinstance(result, dict) or not result.get("status"):
+            msg = result.get("message", "Refresh failed.") if isinstance(result, dict) else "Refresh failed."
+            await query.edit_message_text(
+                f"❌ *Spin refresh failed*\n\n{str(msg)[:300]}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_spin_menu()
+            )
+            return
+
+        response = result.get("response")
+        size = len(response) if isinstance(response, str) else 0
+
+        await query.edit_message_text(
+            "🎡 *SPIN DATA REFRESHED*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "✅ Server response received successfully.\n"
+            f"📦 Encrypted response: `{size} chars`\n\n"
+            "Spin action ke liye fresh server-authorized encrypted payload generation abhi required hai.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb_spin_menu()
+        )
     elif data == "btn_scratch_menu":
         jwt_token = u.get("jwt")
         if not jwt_token:
