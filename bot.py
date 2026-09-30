@@ -308,6 +308,45 @@ def api_claim_game(jwt_token: str, user_id_str: str, offer_id: str):
     except Exception as e:
         return None, str(e)
 
+
+# ============================================================
+# SCRATCH CARD API
+# ============================================================
+def api_get_scratch_cards(jwt_token: str, page: int = 0, limit: int = 16):
+    """Fetch the user's Scratch Card records."""
+    try:
+        url = f"{BASE_URL}/GetScratchCards/{page}/{limit}"
+        r = requests.get(url, headers=build_headers(jwt_token),
+                         proxies=get_configured_proxies(), timeout=20)
+        return safe_parse_json(r)
+    except Exception as e:
+        logger.error(f"api_get_scratch_cards error: {e}")
+        return {"status": False, "message": str(e)}
+
+def api_get_scratch_details(jwt_token: str, scratch_id: str):
+    """Fetch details for one Scratch Card."""
+    try:
+        r = requests.post(f"{BASE_URL}/GetSingle_ScratchCard",
+                          headers=build_headers(jwt_token),
+                          json={"scratch_id": scratch_id},
+                          proxies=get_configured_proxies(), timeout=20)
+        return safe_parse_json(r)
+    except Exception as e:
+        logger.error(f"api_get_scratch_details error: {e}")
+        return {"status": False, "message": str(e)}
+
+def api_use_scratch(jwt_token: str, scratch_id: str):
+    """Use one currently-unused Scratch Card through the normal API flow."""
+    try:
+        r = requests.post(f"{BASE_URL}/useScratch",
+                          headers=build_headers(jwt_token),
+                          json={"scratchId": scratch_id, "isUsed": True},
+                          proxies=get_configured_proxies(), timeout=20)
+        return safe_parse_json(r)
+    except Exception as e:
+        logger.error(f"api_use_scratch error: {e}")
+        return {"status": False, "message": str(e)}
+
 # ============================================================
 # KEYBOARD BUILDERS (100% INLINE BUTTON INTERFACES)
 # ============================================================
@@ -327,10 +366,13 @@ def kb_main_menu(user_id: int) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(login_btn_text, callback_data="btn_login_menu"),
-            InlineKeyboardButton("⏰ Auto Daily Schedule", callback_data="btn_schedule_menu")
+            InlineKeyboardButton("🎁 Scratch Cards", callback_data="btn_scratch_menu")
         ],
         [
-            InlineKeyboardButton("📊 My Analytics", callback_data="btn_user_stats"),
+            InlineKeyboardButton("⏰ Auto Daily Schedule", callback_data="btn_schedule_menu"),
+            InlineKeyboardButton("📊 My Analytics", callback_data="btn_user_stats")
+        ],
+        [
             InlineKeyboardButton("ℹ️ Help & Guide", callback_data="btn_help")
         ]
     ]
@@ -385,6 +427,19 @@ def kb_schedule_menu(enabled: bool) -> InlineKeyboardMarkup:
         ],
         [InlineKeyboardButton("⌨️ Enter Custom Time (HH:MM)", callback_data="sched_custom")],
         [InlineKeyboardButton("🔙 Back to Farm Menu", callback_data="btn_farm_menu")]
+    ])
+
+
+def kb_scratch_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh Scratch Cards", callback_data="btn_scratch_menu")],
+        [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data="nav_main_menu")]
+    ])
+
+def kb_scratch_details(scratch_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎁 Use This Scratch Card", callback_data=f"scratch_use_{scratch_id}")],
+        [InlineKeyboardButton("🔙 Back to Scratch Cards", callback_data="btn_scratch_menu")]
     ])
 
 def kb_cancel_input() -> InlineKeyboardMarkup:
@@ -997,6 +1052,153 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb_back_to_farm()
         )
+
+
+    elif data == "btn_scratch_menu":
+        jwt_token = u.get("jwt")
+        if not jwt_token:
+            await query.edit_message_text(
+                "❌ *Login Required!* Scratch Cards dekhne ke liye pehle OTP login karein.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_login_options()
+            )
+            return
+
+        result = await asyncio.to_thread(api_get_scratch_cards, jwt_token, 0, 16)
+        if not result or not result.get("status"):
+            msg = result.get("message", "Scratch Cards fetch nahi hue.") if isinstance(result, dict) else "Scratch Cards fetch nahi hue."
+            await query.edit_message_text(
+                f"❌ *Scratch Cards fetch failed*\n\n{str(msg)[:300]}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_back_to_main()
+            )
+            return
+
+        response = result.get("response", {})
+        cards = response.get("scratchCards", []) if isinstance(response, dict) else []
+        unused = [x for x in cards if isinstance(x, dict) and not x.get("is_used", True)]
+
+        if not unused:
+            total = response.get("totalCards", len(cards))
+            used_amount = response.get("totalUsedAmount", 0)
+            await query.edit_message_text(
+                "🎁 *SCRATCH CARDS*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"📦 *Records Returned:* {len(cards)}\n"
+                f"📚 *Total Cards:* {total}\n"
+                "🟢 *Currently Unused:* 0\n"
+                f"💰 *Total Used Amount:* {used_amount}\n\n"
+                "Is page me koi unused card available nahi hai.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_scratch_menu()
+            )
+            return
+
+        rows = []
+        for card in unused[:10]:
+            sid = str(card.get("_id", ""))
+            amount = card.get("amount", "?")
+            if len(sid) == 24:
+                rows.append([InlineKeyboardButton(
+                    f"🎁 {amount} Coins • {sid[:6]}…",
+                    callback_data=f"scratch_view_{sid}"
+                )])
+
+        await query.edit_message_text(
+            "🎁 *AVAILABLE SCRATCH CARDS*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"🟢 *Unused:* {len(unused)}\n\n"
+            "Card select karo:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup(
+                rows + [
+                    [InlineKeyboardButton("🔄 Refresh", callback_data="btn_scratch_menu")],
+                    [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data="nav_main_menu")]
+                ]
+            )
+        )
+
+    elif data.startswith("scratch_view_"):
+        scratch_id = data[len("scratch_view_"):]
+        if len(scratch_id) != 24:
+            await query.answer("Invalid Scratch Card ID", show_alert=True)
+            return
+
+        jwt_token = u.get("jwt")
+        if not jwt_token:
+            await query.edit_message_text("❌ Pehle OTP login karein.", reply_markup=kb_login_options())
+            return
+
+        result = await asyncio.to_thread(api_get_scratch_details, jwt_token, scratch_id)
+        card = result.get("response") if isinstance(result, dict) else None
+
+        if not result.get("status") or not isinstance(card, dict):
+            msg = result.get("message", "Card details nahi mile.") if isinstance(result, dict) else "Card details nahi mile."
+            await query.edit_message_text(
+                f"❌ *Card details failed*\n\n{str(msg)[:300]}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_scratch_menu()
+            )
+            return
+
+        used = bool(card.get("is_used", False))
+        status = "🔴 Already Used" if used else "🟢 Available"
+        await query.edit_message_text(
+            "🎁 *SCRATCH CARD DETAILS*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 *Amount:* {card.get('amount', '?')} Coins\n"
+            f"📌 *Status:* {status}\n"
+            f"🎟 *Type:* {card.get('scratch_type', '?')}\n"
+            f"🧾 *Transaction:* {card.get('transactionId', 'N/A')}\n"
+            f"🆔 *Card ID:* {scratch_id}\n"
+            "━━━━━━━━━━━━━━━━━━━━",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb_scratch_details(scratch_id) if not used else kb_scratch_menu()
+        )
+
+    elif data.startswith("scratch_use_"):
+        scratch_id = data[len("scratch_use_"):]
+        if len(scratch_id) != 24:
+            await query.answer("Invalid Scratch Card ID", show_alert=True)
+            return
+
+        jwt_token = u.get("jwt")
+        if not jwt_token:
+            await query.edit_message_text("❌ Pehle OTP login karein.", reply_markup=kb_login_options())
+            return
+
+        details = await asyncio.to_thread(api_get_scratch_details, jwt_token, scratch_id)
+        card = details.get("response") if isinstance(details, dict) else None
+        if not details.get("status") or not isinstance(card, dict):
+            msg = details.get("message", "Card verify nahi hua.") if isinstance(details, dict) else "Card verify nahi hua."
+            await query.edit_message_text(
+                f"❌ *Card verification failed*\n\n{str(msg)[:300]}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_scratch_menu()
+            )
+            return
+
+        if card.get("is_used"):
+            await query.edit_message_text("⚠️ Ye Scratch Card already used hai.", reply_markup=kb_scratch_menu())
+            return
+
+        result = await asyncio.to_thread(api_use_scratch, jwt_token, scratch_id)
+        if result.get("status") is True:
+            await query.edit_message_text(
+                "✅ *SCRATCH CARD USED SUCCESSFULLY*\n\n"
+                f"💰 *Amount:* {card.get('amount', '?')} Coins\n"
+                f"🧾 *Transaction:* {card.get('transactionId', 'N/A')}\n\n"
+                "Server ne card ko successfully used mark kar diya.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_scratch_menu()
+            )
+        else:
+            msg = result.get("message", "Scratch Card use nahi hua.")
+            await query.edit_message_text(
+                f"❌ *Scratch Card use failed*\n\n{str(msg)[:300]}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_scratch_menu()
+            )
 
     elif data == "btn_survey_menu":
         is_running = RUNNING_SURVEY.get(user_id, False)
