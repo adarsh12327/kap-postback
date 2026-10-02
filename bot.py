@@ -76,12 +76,18 @@ DB_FILE = os.path.join("/tmp", "bot_database.json")
 # Match the native Android client's request profile without copying
 # device-specific FCM/app-instance credentials from a real device.
 DEFAULT_HEADERS = {
-    "accept": "application/json",
-    "appversion": "21.5.50",
-    "fcmtoken": "null",
-    "appinstanceid": os.getenv("PROREWARDS_APP_INSTANCE_ID", "").strip(),
+    "accept": "*/*",
+    "appVersion": "21.4.65",
+    "fcmToken": "null",
     "Content-Type": "application/json",
-    "User-Agent": "okhttp/4.10.0",
+    "User-Agent": "Mozilla/5.0 (Linux; Android 12; V2204 Build/SP1A.210812.003_IN) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.36 Mobile Safari/537.36",
+    "Origin": "https://prorewards.io",
+    "X-Requested-With": "mark.adarsh.gr",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
+    "Referer": "https://prorewards.io/login",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 # ============================================================
