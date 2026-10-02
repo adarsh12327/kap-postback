@@ -68,8 +68,8 @@ ADMIN_IDS = [7972816159]
 
 BASE_URL = "https://prorewards.io/server"
 # Confirmed ProRewards OTP send endpoint.
-OTP_SEND_ENDPOINT = f"{BASE_URL}/userLogin"
-OTP_FINISH_ENDPOINT = f"{BASE_URL}/login/finish"
+OTP_SEND_ENDPOINT = os.getenv("PROREWARDS_OTP_SEND_ENDPOINT", f"{BASE_URL}/userLogin").strip()
+OTP_FINISH_ENDPOINT = os.getenv("PROREWARDS_OTP_FINISH_ENDPOINT", f"{BASE_URL}/login/finish").strip()
 DB_FILE = os.path.join("/tmp", "bot_database.json")
 
 DEFAULT_HEADERS = {
