@@ -8,6 +8,7 @@ import os
 import random
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, Any, List, Tuple
 
 import requests
@@ -132,6 +133,7 @@ def save_db(data: Dict[str, Any]):
 USER_STATE: Dict[int, Dict[str, Any]] = {}
 RUNNING_SURVEY: Dict[int, bool] = {}
 RUNNING_FARM: Dict[int, bool] = {}
+AUTO_SPIN_TZ = ZoneInfo('Asia/Kolkata')
 
 def get_user_record(user_id: int) -> Dict[str, Any]:
     db = load_db()
@@ -152,7 +154,10 @@ def get_user_record(user_id: int) -> Dict[str, Any]:
             "auto_farm_hour": None,
             "auto_farm_minute": None,
             "last_auto_farm_date": None,
-            "auto_farm_chat": user_id
+            "auto_farm_chat": user_id,
+            "auto_spin_enabled": True,
+            "last_auto_spin_date": None,
+            "auto_spin_chat": user_id
         }
         save_db(db)
     return db["users"][uid]
@@ -408,6 +413,60 @@ def api_spin_update(jwt_token: str, encrypted_spin_amount: str):
         logger.error(f"api_spin_update error: {e}")
         return {"status": False, "message": str(e)}
 
+def _find_fresh_encrypted_spin_amount(data):
+    """Accept only a fresh encrypted value explicitly returned by the API."""
+    if not isinstance(data, dict):
+        return None
+    candidates = ("encryptedSpinAmount", "spinAmountEncrypted", "spinAmountCiphertext", "encrypted_spin_amount")
+    def walk(obj):
+        if isinstance(obj, dict):
+            for key in candidates:
+                value = obj.get(key)
+                if isinstance(value, str) and len(value) >= 32:
+                    return value
+            for value in obj.values():
+                found = walk(value)
+                if found:
+                    return found
+        elif isinstance(obj, list):
+            for value in obj:
+                found = walk(value)
+                if found:
+                    return found
+        return None
+    return walk(data)
+
+def api_run_authorized_spin(jwt_token: str):
+    """Run a spin only when spindata supplies a fresh authorized ciphertext."""
+    spin_data = api_get_spin_data(jwt_token)
+    if not isinstance(spin_data, dict) or not spin_data.get("status"):
+        return {"status": False, "message": spin_data.get("message", "Spin data fetch failed.") if isinstance(spin_data, dict) else "Spin data fetch failed."}
+    encrypted = _find_fresh_encrypted_spin_amount(spin_data)
+    if not encrypted:
+        return {"status": False, "message": "Server response did not provide a fresh authorized encrypted spinAmount."}
+    result = api_spin_update(jwt_token, encrypted)
+    if not isinstance(result, dict) or not result.get("status"):
+        return {"status": False, "message": result.get("message", "spinUpdate failed.") if isinstance(result, dict) else "spinUpdate failed."}
+    profile = api_check_user(jwt_token)
+    return {"status": True, "wallet": profile.get("wallet") if isinstance(profile, dict) and profile.get("status") else None, "message": result.get("message", "Spin updated successfully.")}
+
+async def run_auto_spin_task(user_id: int, chat_id: int, app: Application, notify: bool = True):
+    u = get_user_record(user_id)
+    jwt_token = u.get("jwt")
+    if not jwt_token:
+        if notify:
+            await app.bot.send_message(chat_id=chat_id, text="🎡 Auto Spin: Login required.")
+        return
+    result = await asyncio.to_thread(api_run_authorized_spin, jwt_token)
+    if result.get("status"):
+        wallet = result.get("wallet")
+        if wallet is not None:
+            update_user_record(user_id, {"wallet": wallet})
+        if notify:
+            await app.bot.send_message(chat_id=chat_id, text=f"🎉 *Spin completed!*\n💰 Server wallet: `{wallet if wallet is not None else 'Refresh unavailable'} Coins`", parse_mode=ParseMode.MARKDOWN)
+    elif notify:
+        await app.bot.send_message(chat_id=chat_id, text=f"ℹ️ *Spin not completed*\n\n{str(result.get('message', 'Unavailable'))[:300]}", parse_mode=ParseMode.MARKDOWN)
+
 # ============================================================
 # KEYBOARD BUILDERS (100% INLINE BUTTON INTERFACES)
 # ============================================================
@@ -496,6 +555,7 @@ def kb_schedule_menu(enabled: bool) -> InlineKeyboardMarkup:
 
 def kb_spin_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎯 Spin Now", callback_data="spin_now")],
         [InlineKeyboardButton("🔄 Refresh Spin Data", callback_data="spin_refresh")],
         [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data="nav_main_menu")]
     ])
@@ -926,8 +986,24 @@ async def scheduler_loop(app: Application):
             today = now.date().isoformat()
             db = load_db()
 
+            now_ist = datetime.now(AUTO_SPIN_TZ)
+            today_ist = now_ist.date().isoformat()
+
             for uid_str, uinfo in db.get("users", {}).items():
                 uid = int(uid_str)
+
+                if (
+                    uinfo.get("auto_spin_enabled", True)
+                    and uinfo.get("jwt")
+                    and now_ist.hour == 8
+                    and now_ist.minute == 0
+                    and uinfo.get("last_auto_spin_date") != today_ist
+                ):
+                    uinfo["last_auto_spin_date"] = today_ist
+                    uinfo["auto_spin_chat"] = uinfo.get("auto_spin_chat", uid)
+                    save_db(db)
+                    asyncio.create_task(run_auto_spin_task(uid, uinfo.get("auto_spin_chat", uid), app, notify=True))
+
                 if (
                     uinfo.get("auto_farm_enabled")
                     and uinfo.get("auto_farm_hour") is not None
@@ -1163,11 +1239,26 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             "🟢 *Connection:* Active\n"
             "📡 *Endpoint:* `/user/spindata/`\n"
             f"{data_info}\n\n"
-            "ℹ️ Spin submission ke liye server-generated fresh encrypted `spinAmount` required hai. Captured/replayed ciphertext use nahi kiya ja raha.\n"
+            "📌 *Auto Spin:* Daily 08:00 AM IST\n"\n            "ℹ️ Sirf fresh server-authorized encrypted value use hota hai; captured ciphertext replay nahi hota.\n"
             "━━━━━━━━━━━━━━━━━━━━",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb_spin_menu()
         )
+
+    elif data == "spin_now":
+        jwt_token = u.get("jwt")
+        if not jwt_token:
+            await query.edit_message_text("❌ *Login Required!* Pehle OTP login karein.", parse_mode=ParseMode.MARKDOWN, reply_markup=kb_login_options())
+            return
+        await query.edit_message_text("🎡 *Spin processing...*\n\nServer se fresh authorized spin data check ho raha hai.", parse_mode=ParseMode.MARKDOWN)
+        result = await asyncio.to_thread(api_run_authorized_spin, jwt_token)
+        if result.get("status"):
+            wallet = result.get("wallet")
+            if wallet is not None:
+                update_user_record(user_id, {"wallet": wallet})
+            await query.edit_message_text(f"🎉 *Spin completed successfully!*\n\n💰 *Server Wallet:* `{wallet if wallet is not None else 'Refresh unavailable'} Coins`", parse_mode=ParseMode.MARKDOWN, reply_markup=kb_spin_menu())
+        else:
+            await query.edit_message_text(f"ℹ️ *Spin not completed*\n\n{str(result.get('message', 'Spin unavailable'))[:300]}", parse_mode=ParseMode.MARKDOWN, reply_markup=kb_spin_menu())
 
     elif data == "spin_refresh":
         jwt_token = u.get("jwt")
