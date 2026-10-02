@@ -51,7 +51,11 @@ async def get_app():
 def set_webhook():
     bot = get_bot()
     token = bot.BOT_TOKEN
-    base = os.getenv("VERCEL_URL", "").strip() or "kap-postback.vercel.app"
+    # Never use VERCEL_URL here: on Vercel it can be the current
+    # deployment/preview hostname, which may require deployment auth and
+    # causes Telegram to receive 401 Unauthorized. Always use the public
+    # production hostname for the Telegram webhook.
+    base = "kap-postback.vercel.app"
     if not token:
         return {"ok": False, "message": "BOT_TOKEN is not configured"}
 
