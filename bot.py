@@ -7,6 +7,7 @@ import logging
 import os
 import random
 import time
+import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Dict, Any, List, Tuple
@@ -72,19 +73,15 @@ OTP_SEND_ENDPOINT = f"{BASE_URL}/userLogin"
 OTP_FINISH_ENDPOINT = f"{BASE_URL}/login/finish"
 DB_FILE = os.path.join("/tmp", "bot_database.json")
 
+# Match the native Android client's request profile without copying
+# device-specific FCM/app-instance credentials from a real device.
 DEFAULT_HEADERS = {
-    "accept": "*/*",
-    "appVersion": "21.4.65",
-    "fcmToken": "null",
+    "accept": "application/json",
+    "appversion": "21.5.50",
+    "fcmtoken": "null",
+    "appinstanceid": os.getenv("PROREWARDS_APP_INSTANCE_ID", "").strip(),
     "Content-Type": "application/json",
-    "User-Agent": "Mozilla/5.0 (Linux; Android 12; V2204 Build/SP1A.210812.003_IN) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.36 Mobile Safari/537.36",
-    "Origin": "https://prorewards.io",
-    "X-Requested-With": "mark.adarsh.gr",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Dest": "empty",
-    "Referer": "https://prorewards.io/login",
-    "Accept-Language": "en-US,en;q=0.9",
+    "User-Agent": "okhttp/4.10.0",
 }
 
 # ============================================================
@@ -216,9 +213,13 @@ def api_send_otp(phone: str, country: str = "IN"):
     """Send an OTP to the user's own ProRewards account."""
     try:
         payload = {"number": phone, "country": country}
+        headers = build_headers()
+        # appInstanceId is optional unless the upstream explicitly requires it.
+        if not headers.get("appinstanceid"):
+            headers.pop("appinstanceid", None)
         r = requests.post(
             OTP_SEND_ENDPOINT,
-            headers=build_headers(),
+            headers=headers,
             json=payload,
             proxies=get_configured_proxies(),
             timeout=20
