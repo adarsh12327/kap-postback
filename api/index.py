@@ -4,8 +4,6 @@ import os
 from http.server import BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
 
-_app = None
-_initialized = False
 _bot = None
 
 
@@ -38,16 +36,6 @@ def build_application():
     return app
 
 
-async def get_app():
-    global _app, _initialized
-    if _app is None:
-        _app = build_application()
-    if not _initialized:
-        await _app.initialize()
-        _initialized = True
-    return _app
-
-
 def set_webhook():
     bot = get_bot()
     token = bot.BOT_TOKEN
@@ -75,9 +63,9 @@ def set_webhook():
 async def process_update(payload):
     from telegram import Update
 
-    # Vercel invocations may use different event loops. Do not keep an
-    # asyncio-bound PTB Application across asyncio.run() calls.
-    bot = get_bot()
+    # A fresh Application is created for every webhook invocation. Vercel
+    # may reuse a worker with a different asyncio event loop, so keeping a
+    # PTB Application globally can bind it to a stale loop.
     app = build_application()
     await app.initialize()
     await app.start()
@@ -173,8 +161,20 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            asyncio.run(process_update(payload))
+            raw = self.rfile.read(length).decode("utf-8")
+            payload = json.loads(raw)
+
+            # Log only non-sensitive routing information. Never log the bot
+            # token, JWTs, OTPs, or the complete Telegram payload.
+            update_id = payload.get("update_id") if isinstance(payload, dict) else None
+            update_kind = next(
+                (k for k in ("message", "callback_query", "edited_message", "channel_post") if k in payload),
+                "unknown",
+            ) if isinstance(payload, dict) else "invalid"
+            print(f"Telegram webhook received: update_id={update_id} type={update_kind}", flush=True)
+
+            processed = asyncio.run(process_update(payload))
+            print(f"Telegram webhook processed: update_id={update_id} processed={processed}", flush=True)
             self._send(200, '{"ok":true}')
         except Exception as exc:
             try:
