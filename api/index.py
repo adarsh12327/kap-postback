@@ -71,13 +71,21 @@ def set_webhook():
 async def process_update(payload):
     from telegram import Update
 
+    # Vercel invocations may use different event loops. Do not keep an
+    # asyncio-bound PTB Application across asyncio.run() calls.
     bot = get_bot()
-    app = await get_app()
-    update = Update.de_json(payload, app.bot)
-    if update is None:
-        return False
-    await app.process_update(update)
-    return True
+    app = build_application()
+    await app.initialize()
+    await app.start()
+    try:
+        update = Update.de_json(payload, app.bot)
+        if update is None:
+            return False
+        await app.process_update(update)
+        return True
+    finally:
+        await app.stop()
+        await app.shutdown()
 
 
 class handler(BaseHTTPRequestHandler):
@@ -90,41 +98,43 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        try:
-            bot = get_bot()
-            token_configured = bool(bot.BOT_TOKEN)
-            webhook_result = None
+        # Keep the health check independent of bot.py so import/runtime
+        # problems can be diagnosed without turning the health endpoint into
+        # the same failing function.
+        if self.path.split("?", 1)[0] in ("/", "/api/index"):
+            try:
+                result = {
+                    "ok": True,
+                    "service": "kap-postback",
+                    "mode": "webhook",
+                    "python_function": "ready",
+                }
 
-            if token_configured:
-                try:
-                    webhook_result = set_webhook()
-                except Exception as exc:
-                    bot.logger.warning("Webhook setup failed: %s", exc)
-                    webhook_result = {"ok": False, "error": str(exc)[:300]}
+                if "setup=1" in self.path:
+                    try:
+                        webhook_result = set_webhook()
+                        result["webhook"] = webhook_result
+                    except Exception as exc:
+                        result["webhook"] = {
+                            "ok": False,
+                            "error": str(exc)[:500],
+                        }
 
-            self._send(
-                200,
-                json.dumps(
-                    {
-                        "ok": True,
-                        "service": "kap-postback",
-                        "mode": "webhook",
-                        "bot_token_configured": token_configured,
-                        "webhook": webhook_result,
-                    }
-                ),
-            )
-        except Exception as exc:
-            self._send(
-                500,
-                json.dumps(
-                    {
-                        "ok": False,
-                        "service": "kap-postback",
-                        "error": str(exc)[:500],
-                    }
-                ),
-            )
+                self._send(200, json.dumps(result))
+            except Exception as exc:
+                self._send(
+                    500,
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "service": "kap-postback",
+                            "error": str(exc)[:500],
+                        }
+                    ),
+                )
+            return
+
+        self._send(404, json.dumps({"ok": False, "error": "Not found"}))
 
     def do_POST(self):
         try:
