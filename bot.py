@@ -1679,14 +1679,19 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
     elif data == "login_otp":
-        USER_STATE[user_id] = {"action": "AWAIT_OTP_PHONE"}
+        # ProRewards currently enforces device/network security on login.
+        # Do not try to bypass those checks from the server-side bot.
         await query.edit_message_text(
-            "📱 *OTP LOGIN*\n\n"
-            "Apne ProRewards account ka mobile number bhejo.\n"
-            "Example: `9000000000`\n\n"
-            "⚠️ Sirf apne account ka number use karo.",
+            "📱 *PROREWARDS LOGIN*\\n\\n"
+            "ProRewards ka current login security check device/network verification use karta hai.\\n\\n"
+            "Bot se OTP request par agar HTTP 400 / VPN message aaye, "
+            "us security check ko bypass karna supported nahi hai.\\n\\n"
+            "👇 Apne Android phone par official ProRewards login/app se login karo.",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb_cancel_input()
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🌐 Open ProRewards Login", url="https://prorewards.io/login")],
+                [InlineKeyboardButton("🔙 Back to Login Menu", callback_data="btn_login_menu")]
+            ])
         )
 
     elif data == "login_logout":
