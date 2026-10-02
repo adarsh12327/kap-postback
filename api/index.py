@@ -120,6 +120,36 @@ class handler(BaseHTTPRequestHandler):
                             "error": str(exc)[:500],
                         }
 
+                if "diag=1" in self.path:
+                    try:
+                        bot = get_bot()
+                        token = bot.BOT_TOKEN
+                        if token:
+                            with urlopen(
+                                Request(
+                                    "https://api.telegram.org/bot" + token + "/getWebhookInfo",
+                                    method="GET",
+                                ),
+                                timeout=10,
+                            ) as response:
+                                result["telegram_webhook_info"] = json.loads(
+                                    response.read().decode("utf-8")
+                                )
+                            with urlopen(
+                                Request(
+                                    "https://api.telegram.org/bot" + token + "/getMe",
+                                    method="GET",
+                                ),
+                                timeout=10,
+                            ) as response:
+                                result["telegram_bot_info"] = json.loads(
+                                    response.read().decode("utf-8")
+                                )
+                        else:
+                            result["telegram_error"] = "BOT_TOKEN is not configured"
+                    except Exception as exc:
+                        result["telegram_error"] = str(exc)[:500]
+
                 self._send(200, json.dumps(result))
             except Exception as exc:
                 self._send(
