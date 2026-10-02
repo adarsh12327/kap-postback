@@ -227,7 +227,9 @@ def api_send_otp(phone: str, country: str = "IN"):
             OTP_SEND_ENDPOINT,
             headers=headers,
             json=payload,
-            proxies=get_configured_proxies(),
+            # OTP/login must use the direct connection. A configured proxy can
+            # trigger ProRewards network/security checks and return HTTP 400.
+            proxies=None,
             timeout=20
         )
         data = safe_parse_json(r)
@@ -262,10 +264,13 @@ def api_finish_otp(phone: str, otp: str, country: str = "IN"):
             OTP_FINISH_ENDPOINT,
             headers=build_headers(),
             json=payload,
-            proxies=get_configured_proxies(),
+            # Keep OTP verification on the same direct network path as OTP send.
+            proxies=None,
             timeout=20
         )
         data = safe_parse_json(r)
+        if isinstance(data, dict):
+            data.setdefault("http_status", r.status_code)
         return data, _extract_jwt(data)
     except Exception as e:
         logger.error(f"api_finish_otp error: {e}")
