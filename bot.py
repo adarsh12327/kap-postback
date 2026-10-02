@@ -1239,7 +1239,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             "🟢 *Connection:* Active\n"
             "📡 *Endpoint:* `/user/spindata/`\n"
             f"{data_info}\n\n"
-            "📌 *Auto Spin:* Daily 08:00 AM IST\n"\n            "ℹ️ Sirf fresh server-authorized encrypted value use hota hai; captured ciphertext replay nahi hota.\n"
+            "📌 *Auto Spin:* Daily 08:00 AM IST\n"
+            "ℹ️ Sirf fresh server-authorized encrypted value use hota hai; captured ciphertext replay nahi hota.\n"
             "━━━━━━━━━━━━━━━━━━━━",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb_spin_menu()
