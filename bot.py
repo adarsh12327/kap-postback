@@ -70,7 +70,7 @@ BASE_URL = "https://prorewards.io/server"
 # Confirmed ProRewards OTP send endpoint.
 OTP_SEND_ENDPOINT = f"{BASE_URL}/userLogin"
 OTP_FINISH_ENDPOINT = f"{BASE_URL}/login/finish"
-DB_FILE = "bot_database.json"
+DB_FILE = os.path.join("/tmp", "bot_database.json")
 
 DEFAULT_HEADERS = {
     "accept": "*/*",
