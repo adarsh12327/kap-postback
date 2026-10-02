@@ -223,10 +223,13 @@ def api_send_otp(phone: str, country: str = "IN"):
             proxies=get_configured_proxies(),
             timeout=20
         )
-        return safe_parse_json(r)
+        data = safe_parse_json(r)
+        if isinstance(data, dict):
+            data.setdefault("http_status", r.status_code)
+        return data
     except Exception as e:
         logger.error(f"api_send_otp error: {e}")
-        return {"status": False, "message": str(e)}
+        return {"status": False, "message": str(e), "http_status": None}
 
 def _extract_jwt(data):
     """Find a JWT/access token in common response shapes."""
@@ -1819,8 +1822,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         else:
             msg = result.get("message", "OTP send nahi hua.") if isinstance(result, dict) else "OTP send nahi hua."
             await wait_msg.edit_text(
-                f"❌ *OTP send failed*\n\n`{str(msg)[:300]}`\n\n"
-                "Agar endpoint alag hai to `PROREWARDS_OTP_SEND_ENDPOINT` set karo.",
+                f"❌ *OTP send failed*\n\n`{str(msg)[:300]}`\n"
+                f"HTTP: `{result.get('http_status', 'unknown') if isinstance(result, dict) else 'unknown'}`",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=kb_login_options()
             )
