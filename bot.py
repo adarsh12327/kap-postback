@@ -71,8 +71,6 @@ ADMIN_IDS = [7972816159]
 
 BASE_URL = "https://prorewards.io/server"
 # Confirmed ProRewards OTP send endpoint.
-OTP_SEND_ENDPOINT = f"{BASE_URL}/userLogin"
-OTP_FINISH_ENDPOINT = f"{BASE_URL}/login/finish"
 DB_FILE = os.path.join("/tmp", "bot_database.json")
 
 # Match the native Android client's request profile without copying
@@ -217,44 +215,6 @@ def get_configured_proxies():
 # ============================================================
 # PROREWARDS API WRAPPERS
 # ============================================================
-def api_send_otp(phone: str, country: str = "IN"):
-    """Send an OTP to the user's own ProRewards account."""
-    try:
-        payload = {"number": phone, "country": country}
-        headers = build_headers()
-        # appInstanceId is optional unless the upstream explicitly requires it.
-        if not headers.get("appinstanceid"):
-            headers.pop("appinstanceid", None)
-        # Establish a normal ProRewards web session first. Some deployments
-        # require the login-page cookies before accepting the OTP request.
-        session = requests.Session()
-        session.headers.update(headers)
-        session.get(
-            "https://prorewards.io/login",
-            headers={
-                "User-Agent": headers.get("User-Agent", ""),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": headers.get("Accept-Language", "en-US,en;q=0.9"),
-            },
-            proxies=None,
-            timeout=15
-        )
-        r = session.post(
-            OTP_SEND_ENDPOINT,
-            headers=headers,
-            json=payload,
-            # OTP/login must use the direct connection. A configured proxy can
-            # trigger ProRewards network/security checks and return HTTP 400.
-            proxies=None,
-            timeout=20
-        )
-        data = safe_parse_json(r)
-        if isinstance(data, dict):
-            data.setdefault("http_status", r.status_code)
-        return data
-    except Exception as e:
-        logger.error(f"api_send_otp error: {e}")
-        return {"status": False, "message": str(e), "http_status": None}
 
 def _extract_jwt(data):
     """Find a JWT/access token in common response shapes."""
@@ -272,25 +232,6 @@ def _extract_jwt(data):
             return token
     return None
 
-def api_finish_otp(phone: str, otp: str, country: str = "IN"):
-    """Verify OTP and return the API response plus any returned JWT."""
-    try:
-        payload = {"number": phone, "otp": otp, "country": country}
-        r = requests.post(
-            OTP_FINISH_ENDPOINT,
-            headers=build_headers(),
-            json=payload,
-            # Keep OTP verification on the same direct network path as OTP send.
-            proxies=None,
-            timeout=20
-        )
-        data = safe_parse_json(r)
-        if isinstance(data, dict):
-            data.setdefault("http_status", r.status_code)
-        return data, _extract_jwt(data)
-    except Exception as e:
-        logger.error(f"api_finish_otp error: {e}")
-        return {"status": False, "message": str(e)}, None
 
 def api_check_user(jwt_token: str):
     try:
