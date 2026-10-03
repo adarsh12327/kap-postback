@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 # BOT CONFIGURATION
 # ============================================================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
-MINI_APP_URL = os.getenv("MINI_APP_URL", "https://kap-postback.vercel.app/api/web").strip()\n", " ").strip()[:120]
+MINI_APP_URL = os.getenv("MINI_APP_URL", "https://kap-postback.vercel.app/api/index?web=1").strip()
         return {
             "status": False,
             "message": f"Server response error (HTTP {r.status_code}): {preview}"
