@@ -223,7 +223,21 @@ def api_send_otp(phone: str, country: str = "IN"):
         # appInstanceId is optional unless the upstream explicitly requires it.
         if not headers.get("appinstanceid"):
             headers.pop("appinstanceid", None)
-        r = requests.post(
+        # Establish a normal ProRewards web session first. Some deployments
+        # require the login-page cookies before accepting the OTP request.
+        session = requests.Session()
+        session.headers.update(headers)
+        session.get(
+            "https://prorewards.io/login",
+            headers={
+                "User-Agent": headers.get("User-Agent", ""),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": headers.get("Accept-Language", "en-US,en;q=0.9"),
+            },
+            proxies=None,
+            timeout=15
+        )
+        r = session.post(
             OTP_SEND_ENDPOINT,
             headers=headers,
             json=payload,
