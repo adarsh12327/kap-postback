@@ -41,6 +41,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
+    WebAppInfo,
 )
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -65,6 +66,7 @@ logger = logging.getLogger(__name__)
 # BOT CONFIGURATION
 # ============================================================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+MINI_APP_URL = os.getenv("MINI_APP_URL", "https://kap-postback.vercel.app/").strip()
 ADMIN_IDS = [7972816159]
 
 BASE_URL = "https://prorewards.io/server"
@@ -505,6 +507,7 @@ def kb_main_menu(user_id: int) -> InlineKeyboardMarkup:
     login_btn_text = "🔄 Login with OTP" if has_jwt else "🔐 Login with OTP"
 
     keyboard = [
+        [InlineKeyboardButton("🌐 Open Secure Mini App", web_app=WebAppInfo(url=MINI_APP_URL))],
         [
             InlineKeyboardButton("⚡ Auto Profiler Survey", callback_data="btn_survey_menu"),
             InlineKeyboardButton("🎮 GameZop Auto Farm", callback_data="btn_farm_menu")
