@@ -124,6 +124,25 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        # Serve the Web Login page directly because this project also has a
+        # Python API handler that may receive the root route on Vercel.
+        route = self.path.split("?", 1)[0]
+        if route in ("/", "/miniapp"):
+            try:
+                page_path = os.path.join(os.path.dirname(__file__), "..", "index.html")
+                with open(page_path, "r", encoding="utf-8") as page_file:
+                    page = page_file.read()
+                raw = page.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+            except Exception as exc:
+                self._send(500, json.dumps({"ok": False, "error": "Web Login page unavailable"}))
+            return
+
         # Keep the health check independent of bot.py so import/runtime
         # problems can be diagnosed without turning the health endpoint into
         # the same failing function.
