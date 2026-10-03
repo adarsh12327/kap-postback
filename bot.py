@@ -504,7 +504,6 @@ async def run_auto_spin_task(user_id: int, chat_id: int, app: Application, notif
 def kb_main_menu(user_id: int) -> InlineKeyboardMarkup:
     u = get_user_record(user_id)
     has_jwt = bool(u.get("jwt"))
-    login_btn_text = "🔄 Login with OTP" if has_jwt else "🔐 Login with OTP"
 
     keyboard = [
         [InlineKeyboardButton("🌐 Open Secure Mini App", web_app=WebAppInfo(url=MINI_APP_URL))],
@@ -517,7 +516,7 @@ def kb_main_menu(user_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton("📋 View Offers", callback_data="btn_view_offers")
         ],
         [
-            InlineKeyboardButton(login_btn_text, callback_data="btn_login_menu"),
+            InlineKeyboardButton("🌐 Web Login", web_app=WebAppInfo(url=MINI_APP_URL)),
             InlineKeyboardButton("🎁 Scratch Cards", callback_data="btn_scratch_menu")
         ],
         [
@@ -539,8 +538,7 @@ def kb_main_menu(user_id: int) -> InlineKeyboardMarkup:
 
 def kb_login_options() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📱 Login with OTP", callback_data="login_otp")],
-        [InlineKeyboardButton("🚪 Logout Current Session", callback_data="login_logout")],
+        [InlineKeyboardButton("🌐 Open Web Login", web_app=WebAppInfo(url=MINI_APP_URL))],
         [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data="nav_main_menu")]
     ])
 
@@ -1688,30 +1686,12 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif data == "btn_login_menu":
         await query.edit_message_text(
-            "🔐 *PROREWARDS LOGIN*\n\n"
-            "📱 OTP Login: apne account ke mobile number se login karein.\n"
-            "OTP verify hone ke baad session automatically connect ho jayega.",
+            "🌐 *WEB LOGIN*\n\nLogin ab secure Web Mini App se hoga.",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb_login_options()
-        )
-
-    elif data == "login_otp":
-        USER_STATE[user_id] = {"action": "AWAIT_OTP_PHONE"}
-        await query.edit_message_text(
-            "📱 *OTP LOGIN*\n\n"
-            "Apne ProRewards account ka mobile number bhejo.\n"
-            "Example: `9000000000`\n\n"
-            "⚠️ Sirf apne account ka number use karo.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb_cancel_input()
-        )
-
-    elif data == "login_logout":
-        update_user_record(user_id, {"jwt": None, "pro_id": None})
-        await query.edit_message_text(
-            "🚪 *Logged Out!* Aapka session successfully clear kar diya gaya hai.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb_back_to_main()
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🌐 Open Web Login", web_app=WebAppInfo(url=MINI_APP_URL))],
+                [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data="nav_main_menu")]
+            ])
         )
 
     elif data == "cancel_action":
