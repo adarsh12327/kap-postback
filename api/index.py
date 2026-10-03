@@ -26,6 +26,40 @@ def build_application():
     )
 
     app = Application.builder().token(bot.BOT_TOKEN).build()
+    # Replace the old bot-side credential entry point with the Web Mini App.
+    # Existing bot features remain available; the old callback is intercepted.
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    original_menu = bot.kb_main_menu
+    def web_menu(user_id):
+        markup = original_menu(user_id)
+        rows = []
+        for row in markup.inline_keyboard:
+            new_row = []
+            for button in row:
+                if getattr(button, "callback_data", None) == "btn_login_menu":
+                    new_row.append(InlineKeyboardButton("🌐 Web Login", web_app=WebAppInfo(url=bot.MINI_APP_URL)))
+                else:
+                    new_row.append(button)
+            rows.append(new_row)
+        return InlineKeyboardMarkup(rows)
+    bot.kb_main_menu = web_menu
+
+    async def web_login_callback(update, context):
+        query = update.callback_query
+        if not query:
+            return
+        await query.answer()
+        await query.edit_message_text(
+            "🌐 *WEB LOGIN*\\n\\n"
+            "Login ab secure Web Mini App se hoga.\\n"
+            "Neeche button dabakar Web Login open karein.",
+            parse_mode=bot.ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🌐 Open Web Login", web_app=WebAppInfo(url=bot.MINI_APP_URL))],
+                [InlineKeyboardButton("🔙 Back to Main Dashboard", callback_data="nav_main_menu")]
+            ])
+        )
+    app.add_handler(CallbackQueryHandler(web_login_callback, pattern=r"^(btn_login_menu|login_otp)$"), group=-1)
     app.add_handler(CommandHandler("start", bot.cmd_start))
     app.add_handler(CommandHandler("menu", bot.cmd_start))
     app.add_handler(CommandHandler("proxy", bot.cmd_proxy))
