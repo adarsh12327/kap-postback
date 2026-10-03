@@ -67,10 +67,6 @@ logger = logging.getLogger(__name__)
 # ============================================================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 MINI_APP_URL = os.getenv("MINI_APP_URL", "https://kap-postback.vercel.app/api/index?web=1").strip()
-        return {
-            "status": False,
-            "message": f"Server response error (HTTP {r.status_code}): {preview}"
-        }
 
 def build_headers(jwt_token: str = None) -> Dict[str, str]:
     h = DEFAULT_HEADERS.copy()
