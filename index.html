@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KAP Mini App</title><script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>body{margin:0;background:#0b1020;color:#fff;font-family:system-ui;display:grid;place-items:center;min-height:100vh}.card{width:min(420px,90%);padding:28px;border-radius:22px;background:#121a2d;text-align:center}.avatar{width:72px;height:72px;border-radius:50%;display:none;margin:auto}.muted{color:#9eabc5}button{width:100%;padding:14px;margin-top:16px;border:0;border-radius:12px;background:#5b7cff;color:#fff;font-weight:700}</style></head>
+<body><main class="card"><img id="a" class="avatar"><h1>KAP</h1><p id="s" class="muted">Verifying Telegram account…</p><button id="close">Close</button></main>
+<script>
+const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}
+const s=document.getElementById('s'),a=document.getElementById('a');
+async function run(){if(!tg?.initData){s.textContent='Open this Mini App from the Telegram bot.';return}try{const r=await fetch('/api/miniapp',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData:tg.initData})});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Verification failed');s.textContent='Verified: '+([d.user.first_name,d.user.last_name].filter(Boolean).join(' ')||'Telegram user');if(d.user.photo_url){a.src=d.user.photo_url;a.style.display='block'}}catch(e){s.textContent=e.message}}document.getElementById('close').onclick=()=>tg?.close();run();
+</script></body></html>
