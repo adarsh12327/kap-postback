@@ -3,7 +3,8 @@
   "regions": ["bom1"],
   "functions": {
     "api/index.py": {"maxDuration": 60},
-    "api/miniapp.py": {"maxDuration": 10}
+    "api/miniapp.py": {"maxDuration": 10},
+    "api/web.py": {"maxDuration": 10}
   },
   "rewrites": [
     {"source": "/miniapp", "destination": "/index.html"},
