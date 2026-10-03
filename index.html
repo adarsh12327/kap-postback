@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KAP Login</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#fff;display:grid;place-items:center;padding:20px}
+.card{width:min(430px,100%);background:#121a2d;border:1px solid #263454;border-radius:22px;padding:28px;box-shadow:0 20px 60px #0008}
+.logo{font-size:28px;font-weight:800;margin-bottom:8px}.sub{color:#9eabc5;margin-bottom:26px}
+.step{display:none}.step.active{display:block}label{display:block;color:#cbd5e1;font-size:14px;margin:0 0 8px}
+input{width:100%;padding:14px;border:1px solid #33415f;border-radius:12px;background:#0c1324;color:#fff;font-size:16px;outline:none}
+input:focus{border-color:#6d8cff}button{width:100%;border:0;border-radius:12px;padding:14px;margin-top:14px;background:#5b7cff;color:#fff;font-weight:700;font-size:16px;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}.msg{min-height:24px;margin-top:16px;font-size:14px}.ok{color:#6ee7b7}.err{color:#fca5a5}.muted{color:#94a3b8;text-align:center;margin-top:16px;font-size:13px}
+.small{font-size:13px;color:#94a3b8;margin-top:8px}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="logo">KAP Login</div>
+  <div class="sub">Secure ProRewards account authorization</div>
+
+  <section id="phoneStep" class="step active">
+    <label for="phone">Mobile number</label>
+    <input id="phone" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" autocomplete="tel">
+    <button id="sendBtn">Send OTP</button>
+  </section>
+
+  <section id="otpStep" class="step">
+    <label for="otp">OTP</label>
+    <input id="otp" inputmode="numeric" maxlength="8" placeholder="Enter OTP" autocomplete="one-time-code">
+    <div class="small" id="masked"></div>
+    <button id="verifyBtn">Verify & Login</button>
+    <button id="backBtn" style="background:#263454">Change number</button>
+  </section>
+
+  <div id="msg" class="msg"></div>
+  <div class="muted">Use only your own authorized account. OTP is never stored in this page.</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let phone="";
+function msg(t,c=""){ $("msg").textContent=t; $("msg").className="msg "+c; }
+$("sendBtn").onclick=async()=>{
+  phone=$("phone").value.replace(/\D/g,"");
+  if(phone.length!==10){msg("Enter a valid 10-digit mobile number.","err");return}
+  $("sendBtn").disabled=true; msg("Sending OTP...");
+  try{
+    const r=await fetch("/api/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"send",phone,country:"IN"})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.message||"OTP send failed");
+    $("phoneStep").classList.remove("active"); $("otpStep").classList.add("active");
+    $("masked").textContent="OTP sent to "+phone.slice(0,2)+"******"+phone.slice(-2);
+    msg("OTP sent successfully.","ok"); $("otp").focus();
+  }catch(e){msg(e.message,"err")}finally{$("sendBtn").disabled=false}
+};
+$("verifyBtn").onclick=async()=>{
+  const otp=$("otp").value.replace(/\D/g,"");
+  if(otp.length<4||otp.length>8){msg("Enter the OTP.","err");return}
+  $("verifyBtn").disabled=true; msg("Verifying...");
+  try{
+    const r=await fetch("/api/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"verify",phone,otp,country:"IN"})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.message||"Verification failed");
+    msg("Login successful.","ok");
+    document.querySelector(".card").innerHTML='<div class="logo">✓ Login Successful</div><div class="sub">Your account has been authorized successfully.</div>';
+  }catch(e){msg(e.message,"err")}finally{$("verifyBtn").disabled=false}
+};
+$("backBtn").onclick=()=>{$("otpStep").classList.remove("active");$("phoneStep").classList.add("active");$("otp").value="";msg("")};
+</script>
+</body>
+</html>
