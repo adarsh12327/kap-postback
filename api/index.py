@@ -127,6 +127,22 @@ class handler(BaseHTTPRequestHandler):
         # Serve the Web Login page directly because this project also has a
         # Python API handler that may receive the root route on Vercel.
         route = self.path.split("?", 1)[0]
+        if "web=1" in self.path:
+            try:
+                page_path = os.path.join(os.path.dirname(__file__), "..", "index.html")
+                with open(page_path, "r", encoding="utf-8") as page_file:
+                    page = page_file.read()
+                raw = page.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+            except Exception:
+                self._send(500, json.dumps({"ok": False, "error": "Web Login page unavailable"}))
+            return
+
         if route in ("/", "/miniapp"):
             try:
                 page_path = os.path.join(os.path.dirname(__file__), "..", "index.html")
