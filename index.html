@@ -12,22 +12,20 @@
 h1{margin:18px 0 8px;font-size:27px}.sub{color:#aab7d0;line-height:1.5}
 .status{margin-top:20px;padding:14px;border-radius:14px;background:#0a1222;color:#c9d4e9;line-height:1.45}
 button{width:100%;margin-top:14px;padding:14px;border:0;border-radius:13px;background:#5875ff;color:white;font-size:16px;font-weight:800}
-button.secondary{background:#202d49}
-button:disabled{opacity:.55}
-.small{margin-top:14px;color:#7786a3;font-size:12px;line-height:1.45}
-.badge{display:inline-block;margin-top:14px;padding:6px 10px;border-radius:999px;background:#17233b;color:#aebde0;font-size:12px}
+button.secondary{background:#202d49}button:disabled{opacity:.55}
+.small{margin-top:14px;color:#7786a3;font-size:12px;line-height:1.45}.badge{display:inline-block;margin-top:14px;padding:6px 10px;border-radius:999px;background:#17233b;color:#aebde0;font-size:12px}
 </style>
 </head>
 <body>
 <main class="card">
 <div class="logo">K</div>
 <h1>ProRewards Login</h1>
-<p class="sub">Securely continue to the official ProRewards login page.</p>
+<p class="sub">First verify your KAP Telegram session, then continue on the official ProRewards login page.</p>
 <div id="status" class="status">Checking Telegram Mini App…</div>
-<button id="login" hidden>🔐 Open ProRewards Login</button>
+<button id="login" hidden>🔐 Continue to ProRewards</button>
 <button id="back" class="secondary" hidden>↩ Back to Telegram</button>
 <div class="badge">Official ProRewards page</div>
-<p class="small">Your OTP and ProRewards session stay on the official ProRewards page. KAP does not request or store your OTP/JWT.</p>
+<p class="small">ProRewards currently documents Google Sign-In as its login method. KAP does not collect your ProRewards password, OTP, cookies, or JWT.</p>
 </main>
 <script>
 const tg=window.Telegram?.WebApp;
@@ -36,43 +34,41 @@ const login=document.getElementById("login");
 const back=document.getElementById("back");
 
 function openOfficialLogin(){
-  // Official web login. We do not proxy, capture, or replay its credentials.
   const url="https://prorewards.io/login";
   if(tg?.openLink) tg.openLink(url);
   else window.open(url,"_blank","noopener,noreferrer");
 }
 
-if(tg){
-  tg.ready(); tg.expand();
-  if(tg.initData){
-    fetch("/api/miniapp",{
+async function verifyTelegram(){
+  if(!tg || !tg.initData){
+    status.textContent="Open this page from the KAP Telegram bot.";
+    return;
+  }
+  try{
+    const r=await fetch("/api/miniapp",{
       method:"POST",
       headers:{"content-type":"application/json"},
       body:JSON.stringify({initData:tg.initData})
-    })
-    .then(r=>r.json())
-    .then(x=>{
-      if(x.ok && x.user){
-        status.innerHTML="✅ Telegram verified as <b>"+(x.user.first_name||"Telegram user")+"</b><br><span style='color:#8f9db7'>Tap below to continue.</span>";
-        login.hidden=false;
-        back.hidden=false;
-      }else{
-        status.textContent=x.error||"Telegram authentication failed.";
-      }
-    })
-    .catch(()=>status.textContent="Connection error. Please try again.");
-  }else{
-    status.textContent="Open this page from the KAP Telegram bot.";
+    });
+    const x=await r.json();
+    if(x.ok && x.user){
+      const name=x.user.first_name||"Telegram user";
+      status.innerHTML="✅ Telegram verified as <b>"+name+"</b><br><span style="color:#8f9db7">You can now continue to ProRewards.</span>";
+      login.hidden=false;
+      back.hidden=false;
+    }else{
+      status.textContent=x.error||"Telegram authentication failed.";
+    }
+  }catch(e){
+    status.textContent="Connection error. Please reopen the Mini App.";
   }
-}else{
-  status.textContent="Open this page from the KAP Telegram bot.";
 }
 
+if(tg){tg.ready();tg.expand();verifyTelegram();}
+else{status.textContent="Open this page from the KAP Telegram bot.";}
+
 login.addEventListener("click",openOfficialLogin);
-back.addEventListener("click",()=>{
-  if(tg?.close) tg.close();
-  else history.back();
-});
+back.addEventListener("click",()=>{if(tg?.close)tg.close();else history.back();});
 </script>
 </body>
 </html>
