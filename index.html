@@ -20,9 +20,9 @@ button{width:100%;margin-top:13px;padding:14px;border:0;border-radius:13px;backg
 </head>
 <body>
 <main class="card">
-<div class="logo">K</div>
-<h1>ProRewards Login</h1>
-<p class="sub">Login from this Mini App using your registered mobile number.</p>
+<div class="logo">P</div>
+<h1>Login to get started</h1>
+<p class="sub">Welcome to Prorewards</p>
 
 <div id="status" class="status">Checking Telegram session…</div>
 
@@ -33,6 +33,7 @@ button{width:100%;margin-top:13px;padding:14px;border:0;border-radius:13px;backg
 <input id="phone" class="input" placeholder="Enter phone number" inputmode="tel" autocomplete="tel">
 </div>
 <button id="send">Request OTP</button>
+<p id="timer" class="small hidden"></p>
 
 <div id="otpBox" class="hidden">
 <label>OTP</label>
@@ -45,7 +46,7 @@ button{width:100%;margin-top:13px;padding:14px;border:0;border-radius:13px;backg
 <button id="back" class="secondary hidden">↩ Back to Telegram</button>
 
 <div class="notice">
-The Mini App does not store passwords, OTPs, JWTs, FCM tokens, or private credentials. OTP verification is enabled only through an authorized ProRewards API integration; no undocumented endpoint is invented here.
+This Mini App keeps the login flow inside Telegram. Passwords, OTPs, JWTs, FCM tokens, and private credentials are not stored. Real OTP delivery is enabled only through an authorized ProRewards API integration.
 </div>
 <p class="small">If the OTP service is not connected, the screen will not pretend that a login succeeded.</p>
 </main>
@@ -54,7 +55,7 @@ The Mini App does not store passwords, OTPs, JWTs, FCM tokens, or private creden
 const tg=window.Telegram?.WebApp;
 const statusEl=document.getElementById("status"), form=document.getElementById("form");
 const phone=document.getElementById("phone"), country=document.getElementById("country");
-const otp=document.getElementById("otp"), otpBox=document.getElementById("otpBox");
+const otp=document.getElementById("otp"), otpBox=document.getElementById("otpBox"), timer=document.getElementById("timer");
 const send=document.getElementById("send"), verify=document.getElementById("verify"), resend=document.getElementById("resend"), back=document.getElementById("back");
 let telegramVerified=false;
 
@@ -75,7 +76,12 @@ async function verifyTelegram(){
 
 function requireAuthorizedApi(){
  msg("OTP service is not connected to an authorized ProRewards integration yet.");
- otpBox.classList.add("hidden");
+}
+let cooldown=0, timerId=null;
+function startCooldown(){
+ cooldown=30; timer.classList.remove("hidden"); send.disabled=true;
+ timer.textContent="Resend available in "+cooldown+"s";
+ clearInterval(timerId); timerId=setInterval(()=>{cooldown--; timer.textContent=cooldown>0?"Resend available in "+cooldown+"s":""; if(cooldown<=0){clearInterval(timerId);send.disabled=false;}},1000);
 }
 
 send.addEventListener("click",()=>{
@@ -83,10 +89,18 @@ send.addEventListener("click",()=>{
  const p=phone.value.replace(/\D/g,"");
  if(p.length<7){msg("Enter a valid mobile number.");return;}
  otpBox.classList.remove("hidden");
- msg("OTP request UI is ready, but no undocumented ProRewards endpoint is being called.");
+ startCooldown();
+ msg("OTP screen opened. A real OTP request requires the authorized ProRewards integration.");
 });
-verify.addEventListener("click",()=>requireAuthorizedApi());
-resend.addEventListener("click",()=>requireAuthorizedApi());
+verify.addEventListener("click",()=>{
+ const code=otp.value.replace(/\D/g,"");
+ if(code.length<4){msg("Enter the OTP.");return;}
+ requireAuthorizedApi();
+});
+resend.addEventListener("click",()=>{
+ if(cooldown>0)return;
+ requireAuthorizedApi();
+});
 back.addEventListener("click",()=>{if(tg?.close)tg.close();else history.back();});
 
 if(tg){tg.ready();tg.expand();verifyTelegram();}
