@@ -68,6 +68,79 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 MINI_APP_URL = os.getenv("MINI_APP_URL", "https://kap-postback.vercel.app/api/index?web=1").strip()
 
+
+# ============================================================
+# GENERIC BOT STATE / CONFIG
+# ============================================================
+# These helpers are intentionally limited to Telegram bot state.
+# They do not perform third-party login or reward automation.
+BASE_URL = os.getenv("BASE_URL", "").strip()
+DB_FILE = os.path.join("/tmp", "bot_database.json")
+DEFAULT_HEADERS = {
+    "accept": "application/json",
+    "content-type": "application/json",
+    "user-agent": "KAP-Telegram-Bot",
+}
+ADMIN_IDS = {
+    int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",")
+    if x.strip().isdigit()
+}
+
+def load_db() -> Dict[str, Any]:
+    try:
+        if not os.path.exists(DB_FILE):
+            return {"users": {}, "settings": {}}
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {"users": {}, "settings": {}}
+        data.setdefault("users", {})
+        data.setdefault("settings", {})
+        return data
+    except (OSError, json.JSONDecodeError):
+        return {"users": {}, "settings": {}}
+
+def save_db(data: Dict[str, Any]):
+    try:
+        os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+        tmp = DB_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        os.replace(tmp, DB_FILE)
+    except OSError as e:
+        logger.error("DB save error: %s", e)
+
+USER_STATE = {}
+RUNNING_SURVEY = {}
+RUNNING_FARM = {}
+
+def get_user_record(user_id: int) -> Dict[str, Any]:
+    db = load_db()
+    key = str(user_id)
+    record = db["users"].get(key)
+    if not isinstance(record, dict):
+        record = {"user_id": user_id}
+        db["users"][key] = record
+        save_db(db)
+    return record
+
+def update_user_record(user_id: int, updates: Dict[str, Any]):
+    db = load_db()
+    key = str(user_id)
+    record = db["users"].get(key)
+    if not isinstance(record, dict):
+        record = {"user_id": user_id}
+    record.update(updates)
+    db["users"][key] = record
+    save_db(db)
+    return record
+
+def safe_parse_json(response):
+    try:
+        return response.json()
+    except (ValueError, TypeError):
+        return None
+
 def build_headers(jwt_token: str = None) -> Dict[str, str]:
     h = DEFAULT_HEADERS.copy()
     if jwt_token:
