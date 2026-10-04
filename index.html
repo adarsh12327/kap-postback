@@ -3,45 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>KAP — Web Login</title>
+<title>KAP — ProRewards Login</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(145deg,#080d19,#111b31);color:#fff;font-family:system-ui,-apple-system,sans-serif;display:grid;place-items:center;padding:20px}
-.card{width:min(430px,100%);padding:30px 24px;border:1px solid #263552;border-radius:24px;background:#10192b;box-shadow:0 20px 60px #0007;text-align:center}
+.card{width:min(430px,100%);padding:28px 22px;border:1px solid #263552;border-radius:24px;background:#10192b;box-shadow:0 20px 60px #0007;text-align:center}
 .logo{width:74px;height:74px;margin:auto;border-radius:20px;display:grid;place-items:center;background:#5875ff;font-size:30px;font-weight:900}
-h1{margin:18px 0 8px;font-size:28px}.sub{color:#aab7d0;line-height:1.5}
-.status{margin-top:22px;padding:14px;border-radius:14px;background:#0a1222;color:#c9d4e9;line-height:1.45}
-button{width:100%;margin-top:16px;padding:14px;border:0;border-radius:13px;background:#5875ff;color:white;font-size:16px;font-weight:800}
-.small{margin-top:14px;color:#7786a3;font-size:12px}
+h1{margin:18px 0 8px;font-size:27px}.sub{color:#aab7d0;line-height:1.5}
+.status{margin-top:20px;padding:14px;border-radius:14px;background:#0a1222;color:#c9d4e9;line-height:1.45}
+button{width:100%;margin-top:14px;padding:14px;border:0;border-radius:13px;background:#5875ff;color:white;font-size:16px;font-weight:800}
+button.secondary{background:#202d49}
+button:disabled{opacity:.55}
+.small{margin-top:14px;color:#7786a3;font-size:12px;line-height:1.45}
+.badge{display:inline-block;margin-top:14px;padding:6px 10px;border-radius:999px;background:#17233b;color:#aebde0;font-size:12px}
 </style>
 </head>
 <body>
 <main class="card">
 <div class="logo">K</div>
-<h1>KAP Web Login</h1>
-<p class="sub">Secure login using your Telegram account.</p>
+<h1>ProRewards Login</h1>
+<p class="sub">Securely continue to the official ProRewards login page.</p>
 <div id="status" class="status">Checking Telegram Mini App…</div>
-<button id="open" hidden>Open from Telegram</button>
-<p class="small">No Telegram or third-party OTP is requested on this page.</p>
+<button id="login" hidden>🔐 Open ProRewards Login</button>
+<button id="back" class="secondary" hidden>↩ Back to Telegram</button>
+<div class="badge">Official ProRewards page</div>
+<p class="small">Your OTP and ProRewards session stay on the official ProRewards page. KAP does not request or store your OTP/JWT.</p>
 </main>
 <script>
 const tg=window.Telegram?.WebApp;
-const status=document.getElementById("status"),open=document.getElementById("open");
+const status=document.getElementById("status");
+const login=document.getElementById("login");
+const back=document.getElementById("back");
+
+function openOfficialLogin(){
+  // Official web login. We do not proxy, capture, or replay its credentials.
+  const url="https://prorewards.io/login";
+  if(tg?.openLink) tg.openLink(url);
+  else window.open(url,"_blank","noopener,noreferrer");
+}
+
 if(tg){
   tg.ready(); tg.expand();
   if(tg.initData){
-    fetch("/api/miniapp",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({initData:tg.initData})})
-    .then(r=>r.json()).then(x=>{
+    fetch("/api/miniapp",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({initData:tg.initData})
+    })
+    .then(r=>r.json())
+    .then(x=>{
       if(x.ok && x.user){
-        status.innerHTML="✅ Logged in as <b>"+(x.user.first_name||"Telegram user")+"</b>";
-      }else status.textContent=x.error||"Telegram authentication failed.";
-    }).catch(()=>status.textContent="Connection error. Please try again.");
+        status.innerHTML="✅ Telegram verified as <b>"+(x.user.first_name||"Telegram user")+"</b><br><span style='color:#8f9db7'>Tap below to continue.</span>";
+        login.hidden=false;
+        back.hidden=false;
+      }else{
+        status.textContent=x.error||"Telegram authentication failed.";
+      }
+    })
+    .catch(()=>status.textContent="Connection error. Please try again.");
   }else{
-    status.textContent="Open this page from the KAP Telegram bot to sign in.";
+    status.textContent="Open this page from the KAP Telegram bot.";
   }
 }else{
-  status.textContent="Open this page from the KAP Telegram bot to sign in.";
+  status.textContent="Open this page from the KAP Telegram bot.";
 }
+
+login.addEventListener("click",openOfficialLogin);
+back.addEventListener("click",()=>{
+  if(tg?.close) tg.close();
+  else history.back();
+});
 </script>
 </body>
 </html>
