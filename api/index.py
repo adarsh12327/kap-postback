@@ -31,6 +31,48 @@ def miniapp_validate(init_data):
     return {k: user.get(k, "") for k in ("id","first_name","last_name","username","language_code","photo_url")}
 
 
+def _session_secret():
+    return (os.getenv("SESSION_SECRET") or os.getenv("BOT_TOKEN") or "").strip()
+
+
+def _make_kap_session(user):
+    import base64, hmac, hashlib, time
+    secret = _session_secret()
+    if not secret:
+        raise ValueError("Secure session secret is not configured")
+    safe = {k: user.get(k, "") for k in ("id", "first_name", "last_name", "username", "language_code")}
+    body = base64.urlsafe_b64encode(
+        json.dumps({"u": safe, "exp": int(time.time()) + 86400}, separators=(",", ":")).encode()
+    ).decode().rstrip("=")
+    sig = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+    return body + "." + sig
+
+
+def _read_kap_session(cookie_header):
+    import base64, hmac, hashlib, time
+    from http.cookies import SimpleCookie
+    try:
+        secret = _session_secret()
+        if not secret:
+            return None
+        jar = SimpleCookie()
+        jar.load(cookie_header or "")
+        item = jar.get("kap_session")
+        if not item:
+            return None
+        body, sig = item.value.rsplit(".", 1)
+        expected = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, sig):
+            return None
+        raw = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
+        data = json.loads(raw.decode("utf-8"))
+        if int(data.get("exp", 0)) < int(time.time()):
+            return None
+        return data.get("u")
+    except Exception:
+        return None
+
+
 def get_bot():
     global _bot
     if _bot is None:
@@ -139,17 +181,21 @@ async def process_update(payload):
 
 
 class handler(BaseHTTPRequestHandler):
-    def _send(self, status, body):
+    def _send(self, status, body, cookie=None):
         raw = body.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
 
     def do_GET(self):
         if self.path.split("?", 1)[0] == "/api/miniapp":
-            self._send(200, json.dumps({"ok": True, "authenticated": False, "user": None}))
+            user = _read_kap_session(self.headers.get("Cookie"))
+            self._send(200, json.dumps({"ok": True, "authenticated": bool(user), "user": user}))
             return
         # Serve the Web Login page directly because this project also has a
         # Python API handler that may receive the root route on Vercel.
@@ -260,7 +306,12 @@ class handler(BaseHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", "0"))
                 payload = json.loads(self.rfile.read(length).decode("utf-8"))
                 user = miniapp_validate(payload.get("initData", ""))
-                self._send(200, json.dumps({"ok": True, "authenticated": True, "user": user}))
+                session = _make_kap_session(user)
+                self._send(
+                    200,
+                    json.dumps({"ok": True, "authenticated": True, "user": user}),
+                    cookie=f"kap_session={session}; Path=/; Max-Age=86400; HttpOnly; Secure; SameSite=Lax",
+                )
             except Exception as exc:
                 self._send(401, json.dumps({"ok": False, "error": str(exc)[:160]}))
             return
