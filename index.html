@@ -16,7 +16,7 @@ label{display:block;margin:17px 0 7px;color:#b8c3d6;font-size:13px;font-weight:7
 button{width:100%;margin-top:13px;padding:14px;border:0;border-radius:13px;background:linear-gradient(90deg,#5865f2,#6624bb);color:#fff;font-size:16px;font-weight:800}button.secondary{background:#202a3c}button:disabled{opacity:.5}
 .hidden{display:none}.small{text-align:center;color:#77849a;font-size:12px;line-height:1.5;margin:14px 2px 0}
 .notice{margin-top:14px;padding:11px;border-radius:12px;background:#19151d;color:#c6b9cc;font-size:12px;line-height:1.45}
-</style>
+.or{text-align:center;color:#777f92;font-weight:700;font-size:12px;margin:16px 0 0}.google{background:#fff;color:#202124;border:1px solid #dadce0}.register{text-align:center;color:#9ca7ba;font-size:13px;margin:18px 0 0}.register span{color:#8c7cff;font-weight:800}</style>
 </head>
 <body>
 <main class="card">
@@ -32,7 +32,7 @@ button{width:100%;margin-top:13px;padding:14px;border:0;border-radius:13px;backg
 <input id="country" class="input country" value="+91" inputmode="tel" aria-label="Country code">
 <input id="phone" class="input" placeholder="Enter phone number" inputmode="tel" autocomplete="tel">
 </div>
-<button id="send">Request OTP</button>
+<button id="send">Request OTP</button><p class="or">OR</p><button id="google" class="google" type="button">Continue with Google</button><p class="register">Not registered yet? <span>Create an account</span></p>
 <p id="timer" class="small hidden"></p>
 
 <div id="otpBox" class="hidden">
@@ -56,7 +56,7 @@ const tg=window.Telegram?.WebApp;
 const statusEl=document.getElementById("status"), form=document.getElementById("form");
 const phone=document.getElementById("phone"), country=document.getElementById("country");
 const otp=document.getElementById("otp"), otpBox=document.getElementById("otpBox"), timer=document.getElementById("timer");
-const send=document.getElementById("send"), verify=document.getElementById("verify"), resend=document.getElementById("resend"), back=document.getElementById("back");
+const send=document.getElementById("send"), verify=document.getElementById("verify"), resend=document.getElementById("resend"), back=document.getElementById("back"), google=document.getElementById("google");
 let telegramVerified=false;
 
 function safe(s){return String(s||"").replace(/[&<>"]/g,"");}
@@ -97,6 +97,7 @@ verify.addEventListener("click",()=>{
  if(code.length<4){msg("Enter the OTP.");return;}
  requireAuthorizedApi();
 });
+google.addEventListener("click",()=>msg("Google login needs the official ProRewards OAuth integration."));
 resend.addEventListener("click",()=>{
  if(cooldown>0)return;
  requireAuthorizedApi();
