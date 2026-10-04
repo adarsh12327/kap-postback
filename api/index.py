@@ -7,6 +7,30 @@ from urllib.request import Request, urlopen
 _bot = None
 
 
+def miniapp_validate(init_data):
+    import hashlib, hmac, time
+    from urllib.parse import parse_qsl
+    token = os.getenv("BOT_TOKEN", "").strip()
+    if not init_data or not token:
+        raise ValueError("Telegram authentication is not configured")
+    data = dict(parse_qsl(init_data, keep_blank_values=True))
+    received = data.pop("hash", None)
+    if not received:
+        raise ValueError("Missing Telegram signature")
+    stamp = int(data.get("auth_date", "0"))
+    if not stamp or abs(time.time() - stamp) > 3600:
+        raise ValueError("Telegram authentication expired")
+    check = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+    key = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    expected = hmac.new(key, check.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, received):
+        raise ValueError("Invalid Telegram signature")
+    user = json.loads(data.get("user", "{}"))
+    if not user.get("id"):
+        raise ValueError("Telegram user missing")
+    return {k: user.get(k, "") for k in ("id","first_name","last_name","username","language_code","photo_url")}
+
+
 def get_bot():
     global _bot
     if _bot is None:
@@ -124,6 +148,9 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        if self.path.split("?", 1)[0] == "/api/miniapp":
+            self._send(200, json.dumps({"ok": True, "authenticated": False, "user": None}))
+            return
         # Serve the Web Login page directly because this project also has a
         # Python API handler that may receive the root route on Vercel.
         route = self.path.split("?", 1)[0]
@@ -228,6 +255,15 @@ class handler(BaseHTTPRequestHandler):
         self._send(404, json.dumps({"ok": False, "error": "Not found"}))
 
     def do_POST(self):
+        if self.path.split("?", 1)[0] == "/api/miniapp":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                user = miniapp_validate(payload.get("initData", ""))
+                self._send(200, json.dumps({"ok": True, "authenticated": True, "user": user}))
+            except Exception as exc:
+                self._send(401, json.dumps({"ok": False, "error": str(exc)[:160]}))
+            return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8")
